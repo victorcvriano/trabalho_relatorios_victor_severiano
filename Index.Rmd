@@ -1,0 +1,78 @@
+---
+title: |
+   ![class='btn noHover'](/media/victor/UNTITLED/trabalho_relatorios_victor_severiano/img/logo_verao_ime_usp.png){width=100px style="display: block; margin:0 auto; align:center;" }
+   <center>Dados do Metacritic sobre álbuns de rap</center>
+output:
+  rmdformats::downcute:
+    self_contained: true
+    default_style: "light"
+    downcute_theme: "default"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introdução
+
+Esse relatório é o meu trabalho final do Curso de Verão ["Relatórios Reprodutíveis com R"](https://beatrizmilz.github.io/2022-curso-de-verao-ime-usp-relatorios/), ministrado pelo IME-USP em 2022. Utilizarei dados do Metacritic, mais especificamente das médias das notas de álbuns de rap reunidas pelo site entre 2000 e 2020. Esses dados foram raspados por mim usando Python (o código está [nesse](https://www.kaggle.com/victorcvriano/scraping-and-analyzing-rap-scores-from-metacritic) notebook que postei no Kaggle).
+
+# Importação e tratamento dos dados
+
+```{r importação, message = FALSE}
+df <- readr::read_csv("/media/victor/UNTITLED/trabalho_relatorios_victor_severiano/dados/mc.csv")
+```
+
+```{r tratamento}
+df <- df |>
+  dplyr::mutate(artist = stringr::str_sub(artist, 4, -1)) |>
+  dplyr::mutate(year = stringr::str_sub(release, -4, -1)) |>
+  dplyr::select(title, artist, year, metascore, userscore) |>
+  dplyr::mutate(userscore = userscore * 10) |>
+  dplyr::mutate(year = as.Date(year, format = "%Y")) |>
+  dplyr::mutate(year = lubridate::year(year))
+
+knitr::kable(df[1:10, ])
+```
+
+# Gráficos
+
+```{r gráfico 1}
+df_scores <- df |>
+  dplyr::select(year:userscore)
+
+df_gather <- df_scores |>
+  tidyr::gather("rating", "score", -year) |>
+  dplyr::group_by(year, rating) |>
+  dplyr::mutate(score = mean(score))
+
+scores_by_year <- ggplot2::ggplot(df_gather, ggplot2::aes(x = year, y = score, group = rating, color = rating)) +
+    ggplot2::geom_line() +
+    ggplot2::ggtitle("Média de notas por ano / Userscore vs Metascore") +
+    ggplot2::theme_minimal()
+
+scores_by_year
+```
+
+O gráfico acima mostra que, na média, as notas dadas pelos usuários do site é bem alta em relação aos álbuns de rap que saíram entre 2000 e 2005. A média das Metascores (avaliações dadas pela crítica especializada e compiladas pelo Metacritic), no entanto, permaneceu inferior à média de userscores até 2016 e, a partir desse ano, manteve-se como superior.
+
+```{r gráfico 2}
+df_gather2 <- df_scores |>
+  dplyr::mutate(decade = dplyr::case_when(
+    year >=2000 & year <=2009 ~ "00s",
+    year >=2010 & year <=2019 ~ "10s",
+    TRUE ~ "20")) |>
+  dplyr::select(decade, metascore, userscore) |>
+  tidyr::gather("rating", "score", -decade) |>
+  dplyr::group_by(decade, rating) |>
+  dplyr::mutate(score = mean(score))
+  
+scores_by_decade <- ggplot2::ggplot(df_gather2, ggplot2::aes(x = decade, y = score, group = rating, fill = rating)) +
+    ggplot2::geom_bar(stat = "identity", position = "dodge") +
+    ggplot2::ggtitle("Média de notas por década / Userscore vs Metascore") +
+    ggplot2::theme_minimal()
+
+scores_by_decade
+```
+
+Comparando a média de Metascores vs Userscores por década, confirmamos que as notas dadas por usuários para álbuns que saíram na década de 2000 são, em geral, bem altas. Na década de 2010, apesar do incremento na média de Metascores a partir de 2016, Metascores e Userscores médias se equivalem.
